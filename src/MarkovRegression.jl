@@ -228,6 +228,39 @@ function fit!(model::hmmglm, X::Matrix{Float64}, y::Union{Vector{T}, BitVector},
     return lls
 end
 
+function fit!(model::hmmglm, X::Vector{Matrix{Float64}}, y::Vector{Vector{T}}, max_iter::Int=100, tol::Float64=1e-6, initialize::Bool=true) where T<: Real
+    # convert y to Float64
+    y = map(y-> convert(Vector{Float64}, y), y)
+    # initialize regression models
+    if initialize
+        initialize_regression!(model, X[1], y[1])
+    end
+    # ll variable
+    lls = [-Inf]
+    # Initialize first log-likelihood
+    prev_ll = -Inf
+    # run EM algorithm
+    for i in 1:max_iter
+        # E-step
+        output = E_step.(Ref(model), X, y)
+        γ, ξ, α = map(x-> x[1], output), map(x-> x[2], output), map(x-> x[3], output)
+        # Log-likelihood
+        ll = sum(map(α -> SSM.logsumexp(α[end, :]), α))
+        push!(lls, ll)
+        println("Log-Likelihood at iter $i: $ll")
+        # M-step
+        M_step!(model, vcat(γ...), vcat(ξ...), vcat(X...), vcat(y...))
+        # check for convergence
+        if i > 1
+            if abs(ll - prev_ll) < tol
+                return lls
+            end
+        end
+        prev_ll = ll 
+    end
+    return lls
+end
+
 function viterbi(hmm::hmmglm, X::Matrix{Float64}, y::Vector{Float64})
     T = length(y)
     K = size(hmm.A, 1)  # Number of states
