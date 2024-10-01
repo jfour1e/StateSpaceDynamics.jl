@@ -1,3 +1,5 @@
+using Test #Import the Test module
+
 # Test general properties of GaussianMixtureModel
 function test_GaussianMixtureModel_properties(
     gmm::GaussianMixtureModel, k::Int, data_dim::Int
@@ -8,6 +10,7 @@ function test_GaussianMixtureModel_properties(
     for Σ in gmm.Σₖ
         @test size(Σ) == (data_dim, data_dim)
         @test ishermitian(Σ)
+        @test minimum(eigvals(Σ)) ≥ 0 #make sure covariance matrix is positive semi-definite
     end
 
     @test length(gmm.πₖ) == k
@@ -24,6 +27,7 @@ function testGaussianMixtureModel_EStep(
     class_probabilities = StateSpaceDynamics.E_Step(gmm, data)
     # Check dimensions
     @test size(class_probabilities) == (size(data, 1), k)
+    
     # Check if the row sums are close to 1 (since they represent probabilities)
     @test all(x -> isapprox(x, 1.0; atol=1e-6), sum(class_probabilities; dims=2))
 
