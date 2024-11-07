@@ -1,4 +1,4 @@
-export GaussianEmission, RegressionEmissions, loglikelihood
+export GaussianEmission, PoissonEmissions, MultinomialEmissions, RegressionEmissions, loglikelihood, sample_emission, update_emission_model!
 
 """
 GaussianEmission: Struct representing a Gaussian emission model.
@@ -8,9 +8,16 @@ mutable struct GaussianEmission <: EmissionsModel
     Σ::Matrix{<:Real}  # State-dependent covariance
 end
 
+
 # Loglikelihood function
-function loglikelihood(emission::GaussianEmission, observation::Vector{Float64})
-    return logpdf(MvNormal(emission.μ, emission.Σ), observation)
+function loglikelihood(emission::GaussianEmission, observation::Vector{<:Real})
+    if length(emission.μ) == 1
+        # Univariate case: Use Normal distribution
+        return logpdf(Normal(emission.μ[1], sqrt(emission.Σ[1, 1])), observation[1])
+    else
+        # Multivariate case: Ensure dimensions match
+        return logpdf(MvNormal(emission.μ, emission.Σ), observation)
+    end
 end
 
 # Likelihood function
@@ -24,16 +31,15 @@ function sample_emission(emission::GaussianEmission)
 end
 
 # Update emissions model for Gaussian model
-function updateEmissionModel!(emission::GaussianEmission, data::Matrix{<:Real}, γ::Vector{Float64})
-    # Assuming data is of size (T, D) where T is the number of observations and D is the observation dimension
+function updateEmissionModel!( emission::GaussianEmission, data::Matrix{<:Real}, γ::Vector{Float64} )
     T, D = size(data)
     # Update mean
-    weighted_sum = sum(data .* γ, dims=1)
-    new_mean = weighted_sum[:] ./ sum(γ)
+    new_mean = sum(data .* γ', dims=2) ./ sum(γ)
+    new_mean = vec(new_mean)
     # Update covariance
-    centered_data = data .- new_mean'
-    weighted_centered = centered_data .* sqrt.(γ)
-    new_covariance = (weighted_centered' * weighted_centered) ./ sum(γ)
+    centered_data = data .- new_mean
+    weighted_centered = centered_data .* γ'
+    new_covariance = (weighted_centered * centered_data') / sum(γ)
     # check if the covariance is symmetric
     if !ishermitian(new_covariance)
         new_covariance = (new_covariance + new_covariance') * 0.5
@@ -58,17 +64,32 @@ mutable struct PoissonEmissions <: EmissionsModel
 end
 
 # loglikelihood of the poisson model.
-function loglikelihood(emission::PoissonEmissions, observation::Vector{Float64})
+function loglikelihood(emission::PoissonEmissions, observation::Vector{<:Real})
     D = length(emission.λ)
     ll = 0.0
     for d in 1:D
-        ll += logpdf(Poisson(emission.λ[d]), observation[:, d])
+        ll += logpdf(Poisson(emission.λ[d]), observation[d])  # Calculate log likelihood for each dimension
     end
     return ll
 end
 
-function updateEmissionModel!(emission::PoissonEmissions, data::Matrix{<:Real})
-    #TODO:  Implement updateEmissionModel! for poisson model
+function updateEmissionModel!(
+    emission::PoissonEmissions, data::Matrix{<:Real}, γ::Vector{Float64}
+)
+    d, N = size(data)
+
+    # Calculate weighted sum of data for each dimension
+    weighted_sum = sum(data .* reshape(γ, 1, :); dims=2)
+    total_responsibility = sum(γ) + 1e-6  # Ensure a small regularization term to avoid division by zero
+    new_λ = weighted_sum[:] ./ total_responsibility  # Normalize by the total responsibility sum
+
+    # Enforce a lower bound on λ to avoid issues with the Poisson distribution
+    new_λ[new_λ .< 1e-6] .= 1e-6
+
+    # Update the Poisson emission model
+    emission.λ = new_λ
+
+    return emission
 end
 
 """
@@ -81,13 +102,27 @@ end
 
 
 # loglikelihood of the multinomial model.
-function loglikelihood(emission::MultinomialEmissions, observation::Vector{Float64})
-    return logpdf(Multinomial(emission.n, emission.p), observation)
+function loglikelihood(emission::MultinomialEmissions, observation::Vector{<:Real})
+    if length(emission.p) == 1
+        # Binomial case
+        return logpdf(Binomial(emission.n, emission.p[1]), observation[1])
+    else
+        # Multinomial case 
+        return logpdf(Multinomial(emission.n, vec(emission.p)), observation)  # Convert p to vector
+    end
 end
 
+function updateEmissionModel!(emission::MultinomialEmissions, data::Matrix{<:Real}, γ::Vector{Float64})
+    d, N = size(data)  
 
-function updateEmissionModel!(emission::MultinomialEmissions, data::Matrix{<:Real})
-    #TODO: Implement updateEmissionModel! for multinomial model
+    Nk = sum(γ)  # Sum of responsibilities 
+
+    # Update category probabilities pₖ 
+    p_new = sum(data .* γ', dims=2) / (Nk * emission.n)  # Sum across data points
+
+    emission.p = reshape(p_new, size(emission.p))  # Reshape for multivariate case
+
+    return emission 
 end
 
 """
