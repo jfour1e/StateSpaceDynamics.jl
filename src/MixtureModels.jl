@@ -661,13 +661,19 @@ with random probabilities for each category and uniform mixing coefficients.
 # Returns
 - A new instance of MultinomialMixtureModel.
 """
-
 function MultinomialMixtureModel(k::Int, n_trials::Int, p_dims::Int)
     # If p_dims == 2, treat it as binomial
-    emissions = [MultinomialEmissions(n_trials, reshape(normalize(rand(p_dims), 1), p_dims, 1)) for _ in 1:k]
+    emissions = [MultinomialEmissions(n_trials, reshape((p -> (p .= normalize(p, 1); p[end] = 1.0 - sum(p[1:end-1]); p))(rand(p_dims)), p_dims, 1)) for _ in 1:k]
     πₖ = ones(k) ./ k  # Uniform mixing coefficients
     return MultinomialMixtureModel(k, n_trials, emissions, πₖ)
 end
+
+function adjust_to_probability_vector(p::Vector{Float64})
+    p .= normalize(p, 1)  # Normalize vector
+    p[end] = 1.0 - sum(p[1:end-1])  # Adjust the last element to ensure exact sum of 1.0
+    return p
+end
+
 
 """
     E_Step(mmm::MultinomialMixtureModel, data::Matrix{Int})

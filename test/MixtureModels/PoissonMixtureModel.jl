@@ -1,63 +1,85 @@
-# Test general properties of PoissonMixtureModel
-function test_PoissonMixtureModel_properties(pmm::PoissonMixtureModel, k::Int)
+# Test general properties of PoissonMixtureModel (compatible with Univariate and Multivariate PMMs)
+function test_PoissonMixtureModel_properties(pmm::PoissonMixtureModel, k::Int, dim::Int)
     @test pmm.k == k
-    @test length(pmm.λₖ) == k
     @test length(pmm.πₖ) == k
-    @test sum(pmm.πₖ) ≈ 1.0
+    @test isapprox(sum(pmm.πₖ), 1.0, atol=1e-6)  # Ensure mixing coefficients sum to 1
+    for i in 1:k
+        @test length(pmm.emissions[i].λ) == dim  # Check the dimension of each emission's parameter vector
+    end
 end
 
-function testPoissonMixtureModel_EStep(pmm::PoissonMixtureModel, data::Union{Matrix{Int}, Vector{Int}})
-    k::Int = pmm.k
-    
-    # Run EStep
+# Test E-Step 
+function testPoissonMixtureModel_EStep(pmm::PoissonMixtureModel, data::Matrix{Int})
+    k = pmm.k
+    n_samples = size(data, 2)  # Use columns for data samples
+
+    # Run E-Step
     class_probabilities = StateSpaceDynamics.E_Step(pmm, data)
-    # Check dimensions
-    @test size(class_probabilities) == (size(data, 1), k)
-    # Check if the row sums are close to 1 (since they represent probabilities)
-    @test all(x -> isapprox(x, 1.0; atol=1e-6), sum(class_probabilities, dims=2))
-    
-    test_PoissonMixtureModel_properties(pmm, k)
+
+    @test size(class_probabilities) == (k, n_samples) 
+
+    # Check if column sums are close to 1
+    @test all(x -> isapprox(x, 1.0; atol=1e-6), sum(class_probabilities, dims=1))
+
+    # Test general properties of the model
+    dim = size(data, 1) 
+    test_PoissonMixtureModel_properties(pmm, k, dim)
 end
 
-function testPoissonMixtureModel_MStep(pmm::PoissonMixtureModel, data::Union{Matrix{Int}, Vector{Int}})
-    k::Int = pmm.k
+# Test M-Step
+function testPoissonMixtureModel_MStep(pmm::PoissonMixtureModel, data::Matrix{Int})
+    k = pmm.k
+    dim = size(data, 1) 
 
+    # Run E-Step to obtain class probabilities
     class_probabilities = StateSpaceDynamics.E_Step(pmm, data)
 
-    # Run MStep
+    # Run M-Step
     StateSpaceDynamics.M_Step!(pmm, data, class_probabilities)
 
-    test_PoissonMixtureModel_properties(pmm, k)
+    # Ensure the model properties hold after M-Step
+    test_PoissonMixtureModel_properties(pmm, k, dim)
 end
 
-function testPoissonMixtureModel_fit(pmm::PoissonMixtureModel, data::Union{Matrix{Int}, Vector{Int}})
-    k::Int = pmm.k
+# Test fit! function
+function testPoissonMixtureModel_fit(pmm::PoissonMixtureModel, data::Matrix{Int})
+    k = pmm.k
+    dim = size(data, 1)  
 
-    # Run fit!
-    fit!(pmm, data; maxiter=10, tol=1e-3)
+    # Run fit! with convergence check
+    log_likelihoods = fit!(pmm, data; maxiter=50, tol=1e-3, initialize_kmeans=true)
 
-    test_PoissonMixtureModel_properties(pmm, k)
+    # Check if log-likelihoods are monotonically increasing
+    @test all(diff(log_likelihoods) .≥ 0)
+
+    # Ensure model properties hold after fitting
+    test_PoissonMixtureModel_properties(pmm, k, dim)
+
+    final_ll = last(log_likelihoods)
+    initial_ll = log_likelihood(pmm, data)
+    @test final_ll ≥ initial_ll
 end
 
-function test_log_likelihood(pmm::PoissonMixtureModel, data::Union{Matrix{Int}, Vector{Int}})
-    # Calculate log-likelihood
-    ll = log_likelihood(pmm, data)
+# Test log-likelihood function 
+function test_log_likelihood(pmm::PoissonMixtureModel, data::Matrix{Int})
+    # Calculate initial log-likelihood
+    initial_ll = log_likelihood(pmm, data)
 
-    # Check if log-likelihood is a scalar
-    @test size(ll) == ()
+    @test initial_ll isa Float64 # Ensure log-likelihood is a scalar
 
-    # Log-likelihood should not necessarily be negative for Poisson models
+    # Initialize λₖ_matrix
+    λₖ_matrix = kmeanspp_initialization(Float64.(data), pmm.k)  # Returns a matrix of shape (d, k)
 
-    # Initialize λₖ with kmeans_init
-    λₖ_matrix = permutedims(kmeanspp_initialization(Float64.(data), pmm.k))
-    pmm.λₖ = vec(λₖ_matrix)
+    for i in 1:pmm.k
+        pmm.emissions[i].λ = λₖ_matrix[:, i] 
+    end
 
-    # Log-likelihood should monotonically increase with iterations (when using exact EM)
-    ll_prev = -Inf
+    # Perform log-likelihood testing after fitting the model
+    prev_ll = -Inf
     for i in 1:10
         fit!(pmm, data; maxiter=1, tol=1e-3, initialize_kmeans=false)
-        ll = log_likelihood(pmm, data)
-        @test ll > ll_prev || isapprox(ll, ll_prev; atol=1e-6)
-        ll_prev = ll
+        current_ll = log_likelihood(pmm, data)
+        @test current_ll > prev_ll || isapprox(current_ll, prev_ll; atol=1e-6)
+        prev_ll = current_ll
     end
 end
