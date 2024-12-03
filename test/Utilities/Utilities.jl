@@ -24,7 +24,7 @@ function test_kmeans_clustering()
     @test size(centroids) == (2, k_means)
     @test length(labels) == 100
     # Now test kmeans on a vector.
-    data = randn(100,)
+    data = randn(100)
     centroids, labels = kmeans_clustering(data, k_means)
     # Check dimensions
     @test size(centroids) == (1, k_means)
@@ -52,10 +52,10 @@ function test_block_tridgm()
 
     # Check some blocks in the matrix
     for i in 1:10
-        @test A[(2i-1):(2i), (2i-1):(2i)] == main[i]
+        @test A[(2i - 1):(2i), (2i - 1):(2i)] == main[i]
         if i < 10
-            @test A[(2i-1):(2i), (2i+1):(2i+2)] == super[i]
-            @test A[(2i+1):(2i+2), (2i-1):(2i)] == sub[i]
+            @test A[(2i - 1):(2i), (2i + 1):(2i + 2)] == super[i]
+            @test A[(2i + 1):(2i + 2), (2i - 1):(2i)] == sub[i]
         end
     end
 
@@ -66,50 +66,10 @@ function test_block_tridgm()
     A = block_tridgm(main, super, sub)
     @test size(A) == (20, 20)
     for i in 1:10
-        @test A[(2i-1):(2i), (2i-1):(2i)] == main[i]
+        @test A[(2i - 1):(2i), (2i - 1):(2i)] == main[i]
         if i < 10
-            @test A[(2i-1):(2i), (2i+1):(2i+2)] == super[i]
-            @test A[(2i+1):(2i+2), (2i-1):(2i)] == sub[i]
+            @test A[(2i - 1):(2i), (2i + 1):(2i + 2)] == super[i]
+            @test A[(2i + 1):(2i + 2), (2i - 1):(2i)] == sub[i]
         end
     end
-end
-
-function test_interleave_reshape()
-    # Test with valid data and dimensions
-    data = collect(1:6)
-    t = 2
-    d = 3
-    X = interleave_reshape(data, t, d)
-    @test size(X) == (2, 3)
-    @test X == [1 2 3; 4 5 6]
-
-    # Test with another set of valid data and dimensions
-    data = collect(1:12)
-    t = 4
-    d = 3
-    X = interleave_reshape(data, t, d)
-    @test size(X) == (4, 3)
-    @test X == [1 2 3; 4 5 6; 7 8 9; 10 11 12]
-
-    # Test with a longer set of data
-    data = collect(1:20)
-    t = 4
-    d = 5
-    X = interleave_reshape(data, t, d)
-    @test size(X) == (4, 5)
-    @test X == [1 2 3 4 5; 6 7 8 9 10; 11 12 13 14 15; 16 17 18 19 20]
-
-    # Test with float data
-    data = collect(1.0:0.5:6.5)
-    t = 4
-    d = 3
-    X = interleave_reshape(data, t, d)
-    @test size(X) == (4, 3)
-    @test X == [1.0 1.5 2.0; 2.5 3.0 3.5; 4.0 4.5 5.0; 5.5 6.0 6.5]
-
-    # Test with mismatched dimensions (should raise an error)
-    data = collect(1:11)
-    t = 2
-    d = 5
-    @test_throws ErrorException interleave_reshape(data, t, d)
 end

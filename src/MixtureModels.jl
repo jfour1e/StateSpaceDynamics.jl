@@ -72,7 +72,6 @@ mutable struct GaussianMixtureModel <: MixtureModel
     πₖ::Vector{<:Real}  # Mixing coefficients
 end
 
-
 """
     GaussianMixtureModel(k::Int, data_dim::Int)
     
@@ -215,7 +214,6 @@ function M_Step!(gmm::GaussianMixtureModel, data::Matrix{<:Real}, γ::Matrix{<:R
     gmm.πₖ .= gmm.πₖ ./ sum(gmm.πₖ)
 end
 
-
 """
     log_likelihood(gmm::GaussianMixtureModel, data::Matrix{<:Real})
 
@@ -235,7 +233,9 @@ function log_likelihood(gmm::GaussianMixtureModel, data::Matrix{<:Real})
             log(gmm.πₖ[k]) + loglikelihood(gmm.emissions[k], data[:, n]) for k in 1:K
         ]
         max_log_prob = maximum(log_probabilities)
-        ll_n = max_log_prob + log(sum(exp(log_prob - max_log_prob) for log_prob in log_probabilities))
+        ll_n =
+            max_log_prob +
+            log(sum(exp(log_prob - max_log_prob) for log_prob in log_probabilities))
         ll += ll_n
     end
 
@@ -330,19 +330,33 @@ end
 
 # Handle vector data by reshaping it into a 2D matrix with a single column
 function E_Step(gmm::GaussianMixtureModel, data::Vector{Float64})
-    E_Step(gmm, reshape(data, :, 1))
+    return E_Step(gmm, reshape(data, :, 1))
 end
 
-function M_Step!(gmm::GaussianMixtureModel, data::Vector{Float64}, class_probabilities::Matrix{<:Real})
-    M_Step!(gmm, reshape(data, :, 1), class_probabilities::Matrix{<:Real})
+function M_Step!(
+    gmm::GaussianMixtureModel, data::Vector{Float64}, class_probabilities::Matrix{<:Real}
+)
+    return M_Step!(gmm, reshape(data, :, 1), class_probabilities::Matrix{<:Real})
 end
 
 function log_likelihood(gmm::GaussianMixtureModel, data::Vector{Float64})
-    log_likelihood(gmm, reshape(data, :, 1))
+    return log_likelihood(gmm, reshape(data, :, 1))
 end
 
-function fit!(gmm::GaussianMixtureModel, data::Vector{Float64}; maxiter::Int=50, tol::Float64=1e-3, initialize_kmeans::Bool=true)
-    fit!(gmm, reshape(data, :, 1); maxiter=maxiter, tol=tol, initialize_kmeans=initialize_kmeans)
+function fit!(
+    gmm::GaussianMixtureModel,
+    data::Vector{Float64};
+    maxiter::Int=50,
+    tol::Float64=1e-3,
+    initialize_kmeans::Bool=true,
+)
+    return fit!(
+        gmm,
+        reshape(data, :, 1);
+        maxiter=maxiter,
+        tol=tol,
+        initialize_kmeans=initialize_kmeans,
+    )
 end
 
 """
@@ -365,7 +379,6 @@ mutable struct PoissonMixtureModel <: MixtureModel
     emissions::Vector{PoissonEmissions}  # Emission models for each cluster
     πₖ::Vector{Float64}  # Mixing coefficients
 end
-
 
 """
     PoissonMixtureModel(k::Int, d::Int)
@@ -473,7 +486,7 @@ function E_Step(pmm::PoissonMixtureModel, data::Matrix{<:Real})
         logsum = logsumexp(γ[:, n])
         γ[:, n] .= exp.(γ[:, n] .- logsum)  # Exponentiate and normalize
     end
-    
+
     return γ  # Return the responsibility matrix
 end
 
@@ -602,19 +615,33 @@ end
 
 # Handle vector data by reshaping it into a 2D matrix with a single column
 function E_Step(pmm::PoissonMixtureModel, data::Vector{Int})
-    E_Step(pmm, reshape(data, :, 1))
+    return E_Step(pmm, reshape(data, :, 1))
 end
 
-function M_Step!(pmm::PoissonMixtureModel, data::Vector{Int}, class_probabilities::Matrix{<:Real})
-    M_Step!(pmm, reshape(data, :, 1), class_probabilities)
+function M_Step!(
+    pmm::PoissonMixtureModel, data::Vector{Int}, class_probabilities::Matrix{<:Real}
+)
+    return M_Step!(pmm, reshape(data, :, 1), class_probabilities)
 end
 
 function log_likelihood(pmm::PoissonMixtureModel, data::Vector{Int})
-    log_likelihood(pmm, reshape(data, :, 1))
+    return log_likelihood(pmm, reshape(data, :, 1))
 end
 
-function fit!(pmm::PoissonMixtureModel, data::Vector{Int}; maxiter::Int=50, tol::Float64=1e-3, initialize_kmeans::Bool=true)
-    fit!(pmm, reshape(data, :, 1); maxiter=maxiter, tol=tol, initialize_kmeans=initialize_kmeans)
+function fit!(
+    pmm::PoissonMixtureModel,
+    data::Vector{Int};
+    maxiter::Int=50,
+    tol::Float64=1e-3,
+    initialize_kmeans::Bool=true,
+)
+    return fit!(
+        pmm,
+        reshape(data, :, 1);
+        maxiter=maxiter,
+        tol=tol,
+        initialize_kmeans=initialize_kmeans,
+    )
 end
 
 

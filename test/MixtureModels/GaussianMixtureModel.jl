@@ -1,5 +1,7 @@
 # Test general properties of GaussianMixtureModel
-function test_GaussianMixtureModel_properties(gmm::GaussianMixtureModel, k::Int, data_dim::Int)
+function test_GaussianMixtureModel_properties(
+    gmm::GaussianMixtureModel, k::Int, data_dim::Int
+)
     @test gmm.k == k
     @test length(gmm.emissions) == k
 
@@ -48,7 +50,7 @@ function testGaussianMixtureModel_MStep(gmm::GaussianMixtureModel, data::Matrix{
     # Run M-Step
     StateSpaceDynamics.M_Step!(gmm, data, class_probabilities)
 
-    test_GaussianMixtureModel_properties(gmm, k, data_dim)
+    return test_GaussianMixtureModel_properties(gmm, k, data_dim)
 end
 
 # Test the fitting process
@@ -59,7 +61,7 @@ function testGaussianMixtureModel_fit(gmm::GaussianMixtureModel, data::Matrix{<:
     # Run fit!
     fit!(gmm, data; maxiter=10, tol=1e-6)
 
-    test_GaussianMixtureModel_properties(gmm, k, data_dim)
+    return test_GaussianMixtureModel_properties(gmm, k, data_dim)
 end
 
 # Test log-likelihood
