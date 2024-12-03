@@ -201,3 +201,194 @@ function fit!(
     finish!(prog)
     return lls
 end
+
+
+"""
+    mutable struct PoissonPCA
+
+# Fields:
+    W: Weight matrix that maps from latent space to data space.
+    μ: Mean parameter for Poisson distribution.
+    σ²: Variance of Gaussian prior.
+    k: Number of latent dimensions.
+    D: Number of features.
+    z: Latent variables.
+"""
+
+mutable struct PoissonPCA
+    W::Matrix{<:AbstractFloat} # Weight matrix
+    μ::Matrix{<:AbstractFloat} 
+    σ²::AbstractFloat 
+    k::Int #latend dimension 
+    D::Int # data dimension 
+    z::Matrix{<:AbstractFloat} # Latent variables
+end
+
+
+"""
+    PoissonPCA(; W::Matrix{<:AbstractFloat}, μ::Matrix{<:AbstractFloat}, σ²::AbstractFloat, k::Int, D::Int)
+
+Constructor for PoissonPCA model.
+
+# Args:
+- `W`: Weight matrix that maps latent space to data space.
+- `μ`: Mean parameter for the Poisson distribution.
+- `σ²`: Variance of Gaussian prior.
+- `k`: Number of latent dimensions.
+- `D`: Number of features.
+"""
+
+function PoissonPCA(; 
+    W::Matrix{<:AbstractFloat}=Matrix{Float64}(undef, 0, 0), 
+    μ::Matrix{<:AbstractFloat}=Matrix{Float64}(undef, 0, 0), 
+    σ²::AbstractFloat=1.0, 
+    k::Int, 
+    D::Int)
+    
+    # Initialize W if not provided
+    W = isempty(W) ? rand(D, k) / sqrt(k) : W
+    # Initialize μ if not provided
+    μ = isempty(μ) ? rand(D) : μ
+    # Initialize z as an empty matrix
+    z = Matrix{Float64}(undef, 0, 0)
+    return PoissonPCA(W, μ, σ², k, D, z)
+end
+
+
+"""
+    E_Step(poisson_pca::PoissonPCA, X::Matrix{<:AbstractFloat})
+
+Expectation step of the EM algorithm for PoissonPCA.
+
+# Args:
+- `poisson_pca`: PoissonPCA model.
+- `X`: Data matrix.
+"""
+
+function E_Step(poisson_pca::PoissonPCA, X::Matrix{<:Real})
+    M, N = poisson_pca.k, size(X, 2)
+    Z_hat = zeros(M, N)
+    posterior_covariances = Matrix{<:Real}[]
+
+    for n in 1:N
+        Z_n = zeros(M)
+        function objective(Z)
+            λ = exp.(poisson_pca.W * Z .+ poisson_pca.μ)
+            poisson_log_likelihood = sum(X[:, n] .* log.(λ) .- λ .- logfactorial.(X[:, n]))
+            log_prior = -0.5 * sum(Z .^ 2) / poisson_pca.σ²
+            return -(poisson_log_likelihood + log_prior)
+        end
+
+        function gradient!(g, Z)
+            λ = exp.(poisson_pca.W * Z .+ poisson_pca.μ)
+            grad_likelihood = poisson_pca.W' * (X[:, n] .- λ)
+            grad_prior = -Z / poisson_pca.σ²
+            g .= -(grad_likelihood + grad_prior)
+        end
+
+        function hessian!(h, Z)
+            λ = exp.(poisson_pca.W * Z .+ poisson_pca.μ)
+            hessian_likelihood = -poisson_pca.W' * Diagonal(λ) * poisson_pca.W
+            hessian_prior = -(1 / poisson_pca.σ²) * I(M)
+            h .= -(hessian_likelihood + hessian_prior + 1e-5 * I(M))
+        end
+
+        result = optimize(objective, gradient!, hessian!, Z_n, Newton(), Optim.Options(g_tol=1e-6, iterations=10))
+        Z_hat[:, n] = Optim.minimizer(result)
+
+        hessian = hessian!(zeros(M, M), Z_hat[:, n])
+        posterior_cov = inv(hessian .- 1e-5 * I(M))
+        push!(posterior_covariances, posterior_cov)
+    end
+
+    poisson_pca.z = Z_hat
+    return Z_hat, posterior_covariances
+end
+ 
+
+"""
+    M_Step!(poisson_pca::PoissonPCA, X::Matrix{<:AbstractFloat}, Z_hat::Matrix{<:AbstractFloat}, posterior_covariances::Vector{<:Matrix{<:AbstractFloat}})
+
+Maximization step of the EM algorithm for PoissonPCA.
+
+# Args:
+- `poisson_pca`: PoissonPCA model.
+- `X`: Data matrix.
+- `Z_hat`: Latent variable estimates.
+- `posterior_covariances`: Covariances from E-step.
+"""
+function M_Step!(poisson_pca::PoissonPCA, X::Matrix{<:Real}, Z_hat::Matrix{<:Real}, posterior_covariances::Vector{<:Matrix{<:Real}})
+    D, M = size(poisson_pca.W)
+    N = size(X, 2)
+    λ = exp.(poisson_pca.W * Z_hat .+ poisson_pca.μ)
+    
+    # Calculate gradients
+    grad_W = (X - λ) * Z_hat' .+ poisson_pca.W * sum(posterior_covariances) / N
+    grad_μ = sum(X - λ, dims=2)
+
+    # Update W and μ
+    poisson_pca.W .+= 0.001 * grad_W
+    poisson_pca.μ .+= 0.001 * grad_μ
+end
+
+
+"""
+    loglikelihood(poisson_pca::PoissonPCA, X::Matrix{<:AbstractFloat}, Z_hat::Matrix{<:AbstractFloat}, posterior_covariances::Vector{<:AbstractFloat})
+
+Calculate the log-likelihood for PoissonPCA.
+"""
+
+function loglikelihood(poisson_pca::PoissonPCA, X::Matrix{<:Real}, Z_hat::Matrix{<:Real}, posterior_covariances::Vector{<:Matrix{<:Real}})
+    M, N = size(Z_hat)
+    μ = reshape(poisson_pca.μ, :)
+    ll = 0.0
+
+    for n in 1:N
+        λ_n = exp.(poisson_pca.W * Z_hat[:, n] .+ μ)
+        ll += sum(X[:, n] .* log.(λ_n) .- λ_n .- logfactorial.(X[:, n]))
+        ll += -0.5 * sum(Z_hat[:, n] .^ 2) / poisson_pca.σ²
+
+
+        hessian = hessian_log_joint(X[:, n], Z_hat[:, n], poisson_pca.W, μ, poisson_pca.σ²)
+        ll -= 0.5 * logdet(hessian - 1e-5 * I(M))
+    end
+
+    return ll
+end
+
+
+"""
+    fit!(poisson_pca::PoissonPCA, X::Matrix{Float64}, max_iter::Int=100, tol::Float64=1e-3)
+
+Fit PoissonPCA to the data using EM algorithm.
+"""
+
+function fit!(poisson_pca::PoissonPCA, X::Matrix{Float64}, max_iter::Int=200, tol::Float64=1e-6)
+    # initiliaze the log-likelihood and z_hats
+    lls = []
+    prev_ll = -Inf
+
+    Z_hat = zeros(Float64, M, N) 
+    
+    prog = Progress(max_iters; desc="Fitting Poisson PCA...")
+
+    for iter in 1:max_iter
+        Z_hat, posterior_covariances = E_Step(X, W, μ, σ2)
+        M_Step!(poisson_pca, X, Z_hat, posterior_covariances)
+
+        ll = loglikelihood(poisson_pca, X, Z_hat, posterior_covariances)
+
+        push!(lls, ll)
+        next!(prog)
+
+        # Check for convergence
+        if abs(ll - prev_ll) < tol
+            println("Convergence reached at iteration $iter")
+            break
+        end
+        prev_ll = ll
+    end
+
+    finish!(prog)
+    return lls
+end
