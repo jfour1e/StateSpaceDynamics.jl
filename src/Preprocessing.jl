@@ -1,4 +1,4 @@
-export ProbabilisticPCA, loglikelihood, fit!
+export ProbabilisticPCA, PoissonPCA, E_Step, M_Step!, loglikelihood, fit!
 
 """
     mutable struct ProbabilisticPCA 
