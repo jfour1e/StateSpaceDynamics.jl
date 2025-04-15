@@ -4,6 +4,7 @@ export kmeans_init!
 # for unit tests
 export estep
 export class_probabilities
+export update_transition_matrix, M_step, sample
 
 """
     HiddenMarkovModel
@@ -22,6 +23,8 @@ mutable struct HiddenMarkovModel <: AbstractHMM
     B::Vector{EmissionModel} # Vector of emission Models
     πₖ::Vector{Float64} # initial state distribution
     K::Int # number of states
+    α1::Float64 # same state stickiness dirichlet parameter
+    α2::Float64 # switching state dirichlet prior parameter
 end
 
 mutable struct ForwardBackward{T<:Real}
@@ -76,6 +79,8 @@ function HiddenMarkovModel(;
     emission=nothing,
     A::Matrix{<:Real}=initialize_transition_matrix(K),
     πₖ::Vector{Float64}=initialize_state_distribution(K),
+    α1::Float64, 
+    α2::Float64, 
 )
 
     # if B does not have all K emission models, then fill in the rest with deep copies of "emission"
@@ -94,7 +99,7 @@ function HiddenMarkovModel(;
     emission_models = B
     #emission_models = Emission.(B)
 
-    model = HiddenMarkovModel(A, emission_models, πₖ, K)
+    model = HiddenMarkovModel(A, emission_models, πₖ, K, α1, α2)
 
     # check that the transition matrix is the proper shape
     @assert size(model.A) == (model.K, model.K)
@@ -312,13 +317,31 @@ function update_transition_matrix!(
 )
     γ = FB_storage.γ
     ξ = FB_storage.ξ
+
     # Update transition probabilities -> @threading good here?
     for i in 1:(model.K)
+
+        row_total = 0.0
+
         for j in 1:(model.K)
-            model.A[i, j] = exp(logsumexp(ξ[i, j, :]) - logsumexp(γ[i, 1:(end - 1)]))
+            count_ij = exp(logsumexp(ξ[i, j, :]) - logsumexp(γ[i, 1:(end - 1)]))
+
+            prior = (i == j ? model.α1 : model.α2)
+
+            posterior = count_ij + prior  
+            model.A[i, j] = posterior
+            row_total += posterior
+
+            # model.A[i, j] = exp(logsumexp(ξ[i, j, :]) - logsumexp(γ[i, 1:(end - 1)]))
         end
+        model.A[i, :] .= model.A[i, :] ./ row_total
+
+        #assert row sums up to 1
+        @assert isapprox(sum(model.A[i, :]), 1.0, atol=1e-6)
     end
 end
+
+
 
 function update_transition_matrix!(
     model::HiddenMarkovModel, FB_storage_vec::Vector{ForwardBackward{Float64}}
