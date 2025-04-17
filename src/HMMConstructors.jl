@@ -21,11 +21,13 @@ function GaussianHMM(;
     output_dim::Int,
     A::Matrix{<:Real}=initialize_transition_matrix(K),
     πₖ::Vector{Float64}=initialize_state_distribution(K),
+    α1::Float64, 
+    α2::Float64, 
 )
     # Create emission models
     emissions = [GaussianEmission(; output_dim=output_dim) for _ in 1:K]
     # Return constructed GaussianHMM
-    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ)
+    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ, α1=α1, α2=α2)
 end
 
 """
@@ -75,6 +77,8 @@ function SwitchingGaussianRegression(;
     λ::Float64=0.0,
     A::Matrix{<:Real}=initialize_transition_matrix(K),
     πₖ::Vector{Float64}=initialize_state_distribution(K),
+    α1::Float64, 
+    α2::Float64, 
 )
     # Create emission models
     emissions = [
@@ -89,7 +93,7 @@ function SwitchingGaussianRegression(;
     ]
 
     # Return the HiddenMarkovModel
-    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ)
+    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ, α1=α1, α2=α2)
 end
 
 """
@@ -122,6 +126,8 @@ function SwitchingBernoulliRegression(;
     λ::Float64=0.0,
     A::Matrix{<:Real}=initialize_transition_matrix(K),
     πₖ::Vector{Float64}=initialize_state_distribution(K),
+    α1::Float64, 
+    α2::Float64, 
 )
     # Create emission models
     emissions = [
@@ -134,7 +140,7 @@ function SwitchingBernoulliRegression(;
         ) for _ in 1:K
     ]
     # Return the HiddenMarkovModel
-    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ)
+    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ, α1=α1, α2=α2)
 end
 
 function SwitchingPoissonRegression(;
@@ -150,6 +156,8 @@ function SwitchingPoissonRegression(;
     λ::Float64=0.0,
     A::Matrix{<:Real}=initialize_transition_matrix(K),
     πₖ::Vector{Float64}=initialize_state_distribution(K),
+    α1::Float64, 
+    α2::Float64, 
 )
 
     # Create emission models
@@ -164,5 +172,5 @@ function SwitchingPoissonRegression(;
     ]
 
     # Return the HiddenMarkovModel
-    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ)
+    return HiddenMarkovModel(; K=K, B=emissions, A=A, πₖ=πₖ, α1=α1, α2=α2)
 end
