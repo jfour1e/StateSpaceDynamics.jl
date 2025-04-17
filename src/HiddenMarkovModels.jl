@@ -4,7 +4,6 @@ export kmeans_init!
 # for unit tests
 export estep
 export class_probabilities
-export update_transition_matrix, M_step, sample
 
 """
     HiddenMarkovModel
@@ -18,6 +17,7 @@ A Hidden Markov Model (HMM) with custom emissions.
 - `A::Matrix{<:Real}`: Transition matrix.
 - `πₖ::Vector{Float64}`: Initial state distribution.
 """
+
 mutable struct HiddenMarkovModel <: AbstractHMM
     A::Matrix{<:Real} # transition matrix
     B::Vector{EmissionModel} # Vector of emission Models
