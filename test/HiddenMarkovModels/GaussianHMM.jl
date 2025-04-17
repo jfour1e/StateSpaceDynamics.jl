@@ -11,7 +11,7 @@ function test_SwitchingGaussian_fit()
     emission_2 = GaussianEmission(output_dim, μ, Σ)
 
     # Create GaussianHMM
-    true_model = StateSpaceDynamics.GaussianHMM(; K=2, output_dim=2)
+    true_model = StateSpaceDynamics.GaussianHMM(; K=2, output_dim=2, α1 = 1.0, α2 = 1.0)
     true_model.B[1] = emission_1
     true_model.B[2] = emission_2
     true_model.A = [0.9 0.1; 0.2 0.8]
@@ -21,7 +21,7 @@ function test_SwitchingGaussian_fit()
     true_labels, data = StateSpaceDynamics.sample(true_model; n=n)
 
     # Fit a gaussian hmm to the data
-    test_model = StateSpaceDynamics.GaussianHMM(; K=2, output_dim=2)
+    test_model = StateSpaceDynamics.GaussianHMM(; K=2, output_dim=2, α1 = 1.0, α2 = 1.0)
 
     μ = [0.5, 0.1]
     Σ = 0.1 * Matrix{Float64}(I, output_dim, output_dim)
@@ -64,14 +64,14 @@ function test_SwitchingGaussian_SingleState_fit()
     emission_1 = GaussianEmission(output_dim, μ, Σ)
 
     # Create GaussianHMM
-    true_model = GaussianHMM(; K=1, output_dim=2)
+    true_model = GaussianHMM(; K=1, output_dim=2, α1 = 1.0, α2 = 1.0)
     true_model.B[1] = emission_1
     # Sample from the model
     n = 20000
     true_labels, data = StateSpaceDynamics.sample(true_model; n=n)
 
     # Fit a new gaussian hmm to the data
-    test_model = GaussianHMM(; K=1, output_dim=3)
+    test_model = GaussianHMM(; K=1, output_dim=3, α1 = 1.0, α2 = 1.0)
 
     ll = StateSpaceDynamics.fit!(test_model, data)
 
@@ -98,7 +98,7 @@ function test_kmeans_init()
     Σ₂ = [0.5 0.5; 0.5 0.5] # Approximate covariance of second cluster
 
     # Create a dummy hmm
-    model = GaussianHMM(; K=2, output_dim=2)
+    model = GaussianHMM(; K=2, output_dim=2, α1 = 1.0, α2 = 1.0)
 
     # Initialize the model using kmeans
     kmeans_init!(model, data)
@@ -126,7 +126,7 @@ function test_trialized_GaussianHMM()
     emission_2 = GaussianEmission(; output_dim=output_dim, μ=μ, Σ=Σ)
 
     # Create GaussianHMM
-    true_model = GaussianHMM(; K=2, output_dim=2)
+    true_model = GaussianHMM(; K=2, output_dim=2, α1 = 1.0, α2 = 1.0)
     true_model.B[1] = emission_1
     true_model.B[2] = emission_2
     true_model.A = [0.9 0.1; 0.8 0.2]
@@ -143,7 +143,7 @@ function test_trialized_GaussianHMM()
     end
 
     # Fit a model to the trialized synthetic data
-    est_model = GaussianHMM(; K=2, output_dim=2)
+    est_model = GaussianHMM(; K=2, output_dim=2, α1 = 1.0, α2 = 1.0)
 
     # Give the model a warm start 
     est_model.A = [0.75 0.25; 0.01 0.99]
@@ -179,7 +179,7 @@ function test_incomplete_initialization()
     emission_2 = GaussianEmission(output_dim, μ, Σ)
 
     # initialize with one emission model even though K is 2
-    model = HiddenMarkovModel(K=2, emission=emission_1)
+    model = HiddenMarkovModel(K=2, emission=emission_1, α1 = 1.0, α2 = 1.0)
 
     # test that the deep copying of the one emissoin model works
     @test model.B[1].μ == model.B[2].μ
